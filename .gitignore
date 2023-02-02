@@ -2,6 +2,8 @@
 *.mp4
 .DS_Store
 .vscode
+videos
+.envrc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

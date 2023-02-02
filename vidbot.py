@@ -3,21 +3,17 @@ import os
 import re
 import requests
 import time
+from urllib import parse
 
 
-BEARER_TOKEN = os.environ['TWITTER_BEARER_TOKEN']
-X_GUEST_TOKEN = os.environ['TWITTER_GUEST_TOKEN']
-
-
-# TODO: consider qs params when parsing
-# Url format: https://twitter.com/JakMimmi/status/1620880851147038723
 def parse_url(url: str) -> str:
-    tweet_id = url.split('/')[-1]
+    o = parse.urlparse(url)
+    tweet_id = o.path.split('/')[-1]
 
     return tweet_id
 
 
-def get_tweet_data(tweet_id: str) -> dict:
+def get_tweet_obj(tweet_id: str) -> dict:
     variables = {
         'focalTweetId': tweet_id,
         'with_rux_injections': False,
@@ -51,10 +47,10 @@ def get_tweet_data(tweet_id: str) -> dict:
     }
 
     url = 'https://api.twitter.com/graphql/6lWNh96EXDJCXl05SAtn_g/TweetDetail'
+    # TODO: Programmatically get headers
     headers = {
-        'authorization': BEARER_TOKEN,
-        # TODO: figure out how to get an up to date token every time
-        'x-guest-token': '1620975371221966851',
+        'authorization': os.environ['TWITTER_BEARER_TOKEN'],
+        'x-guest-token': os.environ['TWITTER_GUEST_TOKEN'],
     }
     params = {
         'variables': json.dumps(variables),
@@ -72,10 +68,11 @@ def parse_tweet_obj(tweet_obj: dict) -> str:
     variants = re.search(pattern, json.dumps(tweet_obj))
 
     if not variants:
-        raise ValueError("Tweet does not contain a video")
+        raise LookupError("Tweet does not contain a video")
 
     urls_obj = f'{{{variants.group()}}}'
     video_variants = json.loads(urls_obj)
+
     def best_bitrate(x: dict): return x.get('bitrate') or -1
     video_obj = max(video_variants['variants'], key=best_bitrate)
     mp4_url = video_obj['url']
@@ -83,19 +80,23 @@ def parse_tweet_obj(tweet_obj: dict) -> str:
     return mp4_url
 
 
-def save_mp4_url(url: str, tweet_id: str = None) -> None:
-    filename = tweet_id or str(int(time.time()))
+def save_mp4_url(url: str, name: str | None = None) -> None:
+    filename = name or str(int(time.time()))
     filename += '.mp4'
 
     content = requests.get(url).content
 
-    with open(filename, "wb") as file:
+    with open(f"videos/{filename}", "wb") as file:
         file.write(content)
 
 
-if __name__ == '__main__':
-    url = 'https://twitter.com/JakMimmi/status/1620880851147038723'
+def download_tweet_video(url: str, filename: str | None = None) -> None:
     tweet_id = parse_url(url)
-    tweet_obj = get_tweet_data(tweet_id)
+    tweet_obj = get_tweet_obj(tweet_id)
     mp4_url = parse_tweet_obj(tweet_obj)
-    save_mp4_url(mp4_url)
+    save_mp4_url(mp4_url, name=filename)
+
+
+if __name__ == '__main__':
+    download_tweet_video(
+        "https://twitter.com/Laxman07utd/status/1620998548065247234")
